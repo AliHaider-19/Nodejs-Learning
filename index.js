@@ -1,15 +1,53 @@
 const express = require('express')
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const mongoose = require('mongoose');
+
+const connection = () => {
+    mongoose.connect('mongodb://localhost:27017/admin')
+    console.log('Connected')
+}
+
+connection();
 
 const app = express();
 const PORT = 3000;
 app.use(express.json());
 app.use(express.static('public'))
+app.use(express.urlencoded({ extended: true }));
 
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdir(uploadDir)
+}
+
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads')
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.originalname)
+    }
+})
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 10000000 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+            cb(null, true)
+        }
+        else {
+            cb(new Error('Invalid File Type'))
+        }
+    }
+})
 const logging = require('./middleware/logging')
-
 const error = require('./middleware/error')
 const userRouter = require('./router/userRoutes')
-const authMiddleware = require('./middleware/validation')
 
 app.use(logging);
 app.use('/user', userRouter);
@@ -17,12 +55,6 @@ app.use('/user', userRouter);
 app.get('/', (req, res) => {
     res.send('Hello, World!');
 })
-
-
-app.get('/about', (req, res) => {
-    res.send('This is the about page');
-})
-
 app.get('/greet', (req, res) => {
     const name = req.query.name;
     if (name) {
@@ -34,27 +66,15 @@ app.get('/greet', (req, res) => {
 })
 
 
-app.post('/login', authMiddleware, (req, res, next) => {
-    const { username, password } = req.body;
-    try {
-
-        if (!username || !password) {
-            throw new Error('Username and password is required')
-        }
-        if (username == 'admin' && password == 'password') {
-            res.send('Login Successful!')
-        }
-        else {
-            res.send('Login Faild!')
-        }
-    }
-    catch (err) {
-        next(err)
-    }
+app.post('/upload', upload.single('file'), (req, res) => {
+    res.json({
+        message: "File uploaded Successfully!",
+        filename: req.file.originalname,
+        size: req.file.size,
+        path: req.file.path
+    })
 
 })
-
-
 
 app.use(error)
 app.listen(PORT, () => {
