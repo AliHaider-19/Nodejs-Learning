@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 
 
 
-router.get('/:id', (req, res) => {
+router.get('/:id', authMiddleware, (req, res) => {
 
     const id = req.params.id;
     console.log(id)
