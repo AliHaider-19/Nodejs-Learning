@@ -4,30 +4,32 @@ const authMiddleware = require('../middleware/validation')
 const User = require('../models/userModel')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
-
-
+const limiter = require('../middleware/rateLimiter');
 
 router.get('/:id', authMiddleware, (req, res) => {
-
-    const id = req.params.id;
-    console.log(id)
-    if (id) {
-        res.send(`User id is ${id}`)
+    const role = req.user.role; // Access role from req.user
+    if (role === 'Admin') {
+        const id = req.params.id;
+        console.log(id);
+        if (id) {
+            res.send(`User id is ${id}`);
+        } else {
+            res.send('User id is null');
+        }
+    } else {
+        res.status(403).send('You are not authorized to access this page');
     }
-    else {
-        res.send('User id is null')
-    }
-})
+});
 
-router.post('/login', authMiddleware, async (req, res, next) => {
+
+router.post('/login', limiter, async (req, res, next) => {
+
     const { username, password } = req.body;
     try {
         if (!username || !password) {
-            throw new Error('Username and password is required')
+            throw new Error('Username and password are required');
         }
-        // if (username == 'admin' && password == 'password') {
-        //     res.send('Login Successful!')
-        // }
+
         const user = await User.findOne({ username: username });
         console.log(user);
         if (!user) {
@@ -36,27 +38,28 @@ router.post('/login', authMiddleware, async (req, res, next) => {
 
         const confirmPass = await bcrypt.compare(password, user.password);
         if (confirmPass) {
-            const token = jwt.sign({ userId: user.id }, "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c", { expiresIn: "1h" });
+            const token = jwt.sign(
+                { userId: user.id, role: user.role },
+                'SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
+                { expiresIn: '1h' }
+            );
             res.status(200).json({ message: 'Login Successful!', token });
+        } else {
+            res.status(400).send('Login Failed!');
         }
-        else {
-            res.send('Login Faild!')
-        }
+    } catch (err) {
+        next(err);
     }
-    catch (err) {
-        next(err)
-    }
-
-})
-
+});
 
 router.post('/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, role } = req.body;
         const saltRounds = 10;
         if (!username || !password) {
             throw new Error('Username and Password required!')
         }
+
         else if (password.length < 8) {
             throw new Error('Password should be 8 character long!')
         }
@@ -64,13 +67,15 @@ router.post('/register', async (req, res) => {
             const hasedPassword = await bcrypt.hash(password, saltRounds);
             const user = await User.create({
                 username: username,
-                password: hasedPassword
+                password: hasedPassword,
+                role: role
             })
-            user.save();
+            await user.save();
             res.status(200).send('Resgiteration Completed!')
         }
     }
     catch (err) {
+        res.status(400).send(err.message);
         throw new Error(err.message)
     }
 })
