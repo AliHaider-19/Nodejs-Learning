@@ -40,7 +40,7 @@ router.post('/login', limiter, async (req, res, next) => {
         if (confirmPass) {
             const token = jwt.sign(
                 { userId: user.id, role: user.role },
-                'SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
+                process.env.SECRET_KEY,
                 { expiresIn: '1h' }
             );
             res.status(200).json({ message: 'Login Successful!', token });
@@ -80,5 +80,42 @@ router.post('/register', async (req, res) => {
     }
 })
 
+
+router.post('/request-reset-password', async (req, res) => {
+    try {
+
+        const username = req.body.username;
+        const user = await User.findOne({ username: username });
+        if (!user) {
+            res.status(404).send('User not found');
+        }
+        const token = jwt.sign({ id: user._id }, process.env.SECRET_KEY, { expiresIn: '10m' });
+        res.status(200).json({ message: 'You can reset your password now', token });
+    }
+    catch (err) {
+        res.status(400).send(err.message);
+        throw new Error(err.message)
+    }
+})
+
+
+router.post('/reset-password', authMiddleware, async (req, res) => {
+    try {
+        const saltRounds = 10;
+        const password = req.body.password;
+        const hasedPassword = await bcrypt.hash(password, saltRounds)
+        const user = await User.updateOne({ _id: req.user.id }, { password: hasedPassword })
+        if (user) {
+            res.status(200).send('Password reset Successfully!');
+        }
+        else {
+            res.status(400).send('Failed during reset password');
+        }
+    }
+    catch (err) {
+        res.status(400).send(err.message)
+        throw new Error(err.message)
+    }
+})
 
 module.exports = router;

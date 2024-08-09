@@ -3,9 +3,9 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-
+require('dotenv').config();
 const connection = () => {
-    mongoose.connect('mongodb://localhost:27017/admin')
+    mongoose.connect(process.env.MONGO_URL)
     console.log('Connected')
 }
 
