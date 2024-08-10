@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const userSchema = mongoose.Schema({
-    username: {
+    email: {
         type: String,
         required: true,
     },
@@ -13,6 +13,10 @@ const userSchema = mongoose.Schema({
         type: String,
         enum: ['User', 'Admin'],
         default: 'User'
+    },
+    verified: {
+        type: Boolean,
+        default: false,
     }
 
 

@@ -5,6 +5,10 @@ const User = require('../models/userModel')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
 const limiter = require('../middleware/rateLimiter');
+const nodemailer = require('nodemailer');
+const mailer = require('../middleware/mailer');
+
+
 
 router.get('/:id', authMiddleware, (req, res) => {
     const role = req.user.role; // Access role from req.user
@@ -24,13 +28,13 @@ router.get('/:id', authMiddleware, (req, res) => {
 
 router.post('/login', limiter, async (req, res, next) => {
 
-    const { username, password } = req.body;
+    const { email, password } = req.body;
     try {
-        if (!username || !password) {
-            throw new Error('Username and password are required');
+        if (!email || !password) {
+            throw new Error('Email and password are required');
         }
 
-        const user = await User.findOne({ username: username });
+        const user = await User.findOne({ email: email });
         console.log(user);
         if (!user) {
             return res.status(400).send('Login failed! User not found.');
@@ -54,38 +58,61 @@ router.post('/login', limiter, async (req, res, next) => {
 
 router.post('/register', async (req, res) => {
     try {
-        const { username, password, role } = req.body;
+        const { email, password, role } = req.body;
         const saltRounds = 10;
-        if (!username || !password) {
-            throw new Error('Username and Password required!')
+        if (!email || !password) {
+            throw new Error('Email and Password required!')
         }
 
-        else if (password.length < 8) {
+        if (password.length < 8) {
             throw new Error('Password should be 8 character long!')
         }
-        else {
-            const hasedPassword = await bcrypt.hash(password, saltRounds);
-            const user = await User.create({
-                username: username,
-                password: hasedPassword,
-                role: role
-            })
-            await user.save();
-            res.status(200).send('Resgiteration Completed!')
-        }
+        const hasedPassword = await bcrypt.hash(password, saltRounds);
+        const user = await User.create({
+            email: email,
+            password: hasedPassword,
+            role: role
+        })
+        await user.save();
+
+        const verificationToken = jwt.sign({ id: user._id }, process.env.SECRET_KEY, { expiresIn: '10m' })
+        const verificationLink = `${req.protocol}://${req.get('host')}/verify-email?token=${verificationToken}`;
+
+        await mailer(email, verificationLink);
+        res.status(200).send('Resgiteration Completed!')
+
     }
     catch (err) {
         res.status(400).send(err.message);
         throw new Error(err.message)
     }
 })
+router.get('/verify-email', async (req, res) => {
+    try {
+        const { token } = req.query;
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        if (user.verified) {
+            return res.status(400).json({ message: 'Email is already verified.' });
+        }
+        user.verified = true;
+        await user.save();
+
+        res.status(200).json({ message: 'Email successfully verified.' });
+    } catch (error) {
+        res.status(400).json({ error: 'Invalid or expired token.' });
+    }
+});
 
 
 router.post('/request-reset-password', async (req, res) => {
     try {
 
-        const username = req.body.username;
-        const user = await User.findOne({ username: username });
+        const email = req.body.email;
+        const user = await User.findOne({ email: email });
         if (!user) {
             res.status(404).send('User not found');
         }
@@ -117,5 +144,8 @@ router.post('/reset-password', authMiddleware, async (req, res) => {
         throw new Error(err.message)
     }
 })
+
+
+
 
 module.exports = router;
