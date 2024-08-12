@@ -3,6 +3,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+
 require('dotenv').config();
 const connection = () => {
     mongoose.connect(process.env.MONGO_URL)
@@ -48,9 +49,11 @@ const upload = multer({
 const logging = require('./middleware/logging')
 const error = require('./middleware/error')
 const userRouter = require('./router/userRoutes')
+const adminRouter = require('./router/adminRouter')
 
 app.use(logging);
 app.use('/user', userRouter);
+app.use('/admin', adminRouter)
 
 app.get('/', (req, res) => {
     res.send('Hello, World!');

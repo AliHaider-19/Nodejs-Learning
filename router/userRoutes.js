@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const limiter = require('../middleware/rateLimiter');
 const nodemailer = require('nodemailer');
 const mailer = require('../middleware/mailer');
+const path = require('path')
 
 
 
@@ -43,7 +44,7 @@ router.post('/login', limiter, async (req, res, next) => {
         const confirmPass = await bcrypt.compare(password, user.password);
         if (confirmPass) {
             const token = jwt.sign(
-                { userId: user.id, role: user.role },
+                { userId: user._id, role: user.role },
                 process.env.SECRET_KEY,
                 { expiresIn: '1h' }
             );
@@ -145,6 +146,30 @@ router.post('/reset-password', authMiddleware, async (req, res) => {
     }
 })
 
+
+router.get('/download/:filename', authMiddleware, (req, res) => {
+    try {
+        const filename = req.params.filename;
+
+        const filepath = path.join(__dirname, '../uploads', filename);
+        console.log(filepath)
+        if (filepath) {
+
+            res.download(filepath, (err) => {
+                if (err) {
+                    res.status(404).send('Provided file path is not provided')
+                }
+            })
+        }
+
+        else {
+            throw new Error('You are not allowed to this page')
+        }
+    }
+    catch (err) {
+        res.status(404).send('You are not authorized to this page');
+    }
+})
 
 
 

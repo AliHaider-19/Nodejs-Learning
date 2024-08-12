@@ -10,8 +10,8 @@ module.exports = validation = (req, res, next) => {
         return res.status(401).json({ error: 'Token is missing' });
     }
     try {
+        console.log(token)
         const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
-        console.log('Token Validated')
         req.user = decodedToken;  // Attach decoded token to request object if needed later
 
         next();
