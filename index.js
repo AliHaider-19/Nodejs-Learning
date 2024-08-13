@@ -3,6 +3,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const User = require('./models/userModel')
 
 require('dotenv').config();
 const connection = () => {

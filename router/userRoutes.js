@@ -11,22 +11,6 @@ const path = require('path')
 
 
 
-router.get('/:id', authMiddleware, (req, res) => {
-    const role = req.user.role; // Access role from req.user
-    if (role === 'Admin') {
-        const id = req.params.id;
-        console.log(id);
-        if (id) {
-            res.send(`User id is ${id}`);
-        } else {
-            res.send('User id is null');
-        }
-    } else {
-        res.status(403).send('You are not authorized to access this page');
-    }
-});
-
-
 router.post('/login', limiter, async (req, res, next) => {
 
     const { email, password } = req.body;
@@ -170,6 +154,51 @@ router.get('/download/:filename', authMiddleware, (req, res) => {
         res.status(404).send('You are not authorized to this page');
     }
 })
+
+
+
+router.get('/user-details', authMiddleware, async (req, res) => {
+    try {
+        const page = parseInt(req.params.page) || 1;
+        const limit = parseInt(req.params.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        const users = await User.find().skip(offset).limit(limit);
+        const totalUsers = await User.countDocuments();
+        if (users.length > 0) { // Check if users array is not empty
+            res.status(200).json({
+                users,
+                currentPage: page,
+                totalPages: Math.ceil(totalUsers / limit),
+                totalUsers
+            });
+        } else {
+            res.status(404).send('No user data found!');
+        }
+    } catch (err) {
+        res.status(500).send('Something went wrong');
+    }
+});
+
+
+
+
+router.get('/:id', authMiddleware, (req, res) => {
+    const role = req.user.role; // Access role from req.user
+    if (role === 'Admin') {
+        const id = req.params.id;
+        console.log(id);
+        if (id) {
+            res.send(`User id is ${id}`);
+        } else {
+            res.send('User id is null');
+        }
+    } else {
+        res.status(403).send('You are not authorized to access this page');
+    }
+});
+
+
 
 
 
