@@ -12,17 +12,15 @@ const path = require('path')
 
 
 router.post('/login', limiter, async (req, res, next) => {
-
     const { email, password } = req.body;
     try {
         if (!email || !password) {
-            throw new Error('Email and password are required');
+            return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        const user = await User.findOne({ email: email });
-        console.log(user);
+        const user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).send('Login failed! User not found.');
+            return res.status(400).json({ error: 'Login failed! User not found.' });
         }
 
         const confirmPass = await bcrypt.compare(password, user.password);
@@ -34,48 +32,48 @@ router.post('/login', limiter, async (req, res, next) => {
             );
             res.status(200).json({ message: 'Login Successful!', token });
         } else {
-            res.status(400).send('Login Failed!');
+            res.status(400).json({ error: 'Login Failed!' });
         }
     } catch (err) {
         next(err);
     }
 });
 
+
 router.post('/register', async (req, res) => {
     try {
         const { email, password, role } = req.body;
         const saltRounds = 10;
         if (!email || !password) {
-            throw new Error('Email and Password required!')
+            return res.status(400).json({ error: 'Email and Password required!' });
         }
 
         if (password.length < 8) {
-            throw new Error('Password should be 8 character long!')
+            return res.status(400).json({ error: 'Password should be 8 characters long!' });
         }
-        const hasedPassword = await bcrypt.hash(password, saltRounds);
-        const user = await User.create({
-            email: email,
-            password: hasedPassword,
-            role: role
-        })
-        await user.save();
 
-        const verificationToken = jwt.sign({ id: user._id }, process.env.SECRET_KEY, { expiresIn: '10m' })
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const user = await User.create({
+            email,
+            password: hashedPassword,
+            role
+        });
+
+        const verificationToken = jwt.sign({ id: user._id }, process.env.SECRET_KEY, { expiresIn: '10m' });
         const verificationLink = `${req.protocol}://${req.get('host')}/verify-email?token=${verificationToken}`;
 
         await mailer(email, verificationLink);
-        res.status(200).send('Resgiteration Completed!')
-
+        res.status(200).json({ message: 'Registration Completed!' });
     }
     catch (err) {
-        res.status(400).send(err.message);
-        throw new Error(err.message)
+        res.status(400).json({ error: err.message });
     }
-})
+});
+
 router.get('/verify-email', async (req, res) => {
     try {
         const { token } = req.query;
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
         const user = await User.findById(decoded.id);
         if (!user) {
             return res.status(404).json({ error: 'User not found.' });
@@ -95,11 +93,10 @@ router.get('/verify-email', async (req, res) => {
 
 router.post('/request-reset-password', async (req, res) => {
     try {
-
         const email = req.body.email;
-        const user = await User.findOne({ email: email });
+        const user = await User.findOne({ email });
         if (!user) {
-            res.status(404).send('User not found');
+            return res.status(200).json({ message: 'If this email is registered, you will receive a password reset link.' });
         }
         const token = jwt.sign({ id: user._id }, process.env.SECRET_KEY, { expiresIn: '10m' });
         await mailer(user.email, token);
@@ -107,10 +104,10 @@ router.post('/request-reset-password', async (req, res) => {
         res.status(200).json({ message: 'You can reset your password now', token });
     }
     catch (err) {
-        res.status(400).send(err.message);
-        throw new Error(err.message)
+        res.status(400).json({ error: err.message });
     }
-})
+});
+
 
 
 router.post('/reset-password/:token', async (req, res) => {
@@ -119,7 +116,7 @@ router.post('/reset-password/:token', async (req, res) => {
         const { newPassword } = req.body;
 
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
-        const user = await User.findById(decoded.userId);
+        const user = await User.findById(decoded.id);
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
@@ -139,26 +136,21 @@ router.post('/reset-password/:token', async (req, res) => {
 router.get('/download/:filename', authMiddleware, (req, res) => {
     try {
         const filename = req.params.filename;
-
         const filepath = path.join(__dirname, '../uploads', filename);
-        console.log(filepath)
-        if (filepath) {
 
-            res.download(filepath, (err) => {
+        if (path.exists(filepath)) {
+            return res.download(filepath, (err) => {
                 if (err) {
-                    res.status(404).send('Provided file path is not provided')
+                    return res.status(404).json({ error: 'File not found' });
                 }
-            })
+            });
+        } else {
+            return res.status(404).json({ error: 'File not found' });
         }
-
-        else {
-            throw new Error('You are not allowed to this page')
-        }
+    } catch (err) {
+        res.status(403).json({ error: 'You are not authorized to access this page' });
     }
-    catch (err) {
-        res.status(404).send('You are not authorized to this page');
-    }
-})
+});
 
 
 
@@ -194,7 +186,7 @@ router.get('/search', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offSet = (page - 1) * limit;
 
-    const search = req.query || '';
+    const search = req.query.search || '';
 
     const query = {
         $or: [
@@ -215,12 +207,13 @@ router.get('/search', async (req, res) => {
                 totalUsers
             });
         } else {
-            return res.send('No user data found against this username');
+            return res.status(404).json({ error: 'No user data found against this username' });
         }
     } catch (error) {
-        return res.status(500).send('An error occurred while searching for users');
+        return res.status(500).json({ error: 'An error occurred while searching for users' });
     }
 });
+
 
 
 
