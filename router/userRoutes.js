@@ -102,6 +102,8 @@ router.post('/request-reset-password', async (req, res) => {
             res.status(404).send('User not found');
         }
         const token = jwt.sign({ id: user._id }, process.env.SECRET_KEY, { expiresIn: '10m' });
+        await mailer(user.email, token);
+
         res.status(200).json({ message: 'You can reset your password now', token });
     }
     catch (err) {
@@ -111,24 +113,27 @@ router.post('/request-reset-password', async (req, res) => {
 })
 
 
-router.post('/reset-password', authMiddleware, async (req, res) => {
+router.post('/reset-password/:token', async (req, res) => {
     try {
-        const saltRounds = 10;
-        const password = req.body.password;
-        const hasedPassword = await bcrypt.hash(password, saltRounds)
-        const user = await User.updateOne({ _id: req.user.id }, { password: hasedPassword })
-        if (user) {
-            res.status(200).send('Password reset Successfully!');
+        const { token } = req.params;
+        const { newPassword } = req.body;
+
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
+        const user = await User.findById(decoded.userId);
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
         }
-        else {
-            res.status(400).send('Failed during reset password');
-        }
+
+        user.password = await bcrypt.hash(newPassword, 10); // Make sure to hash the password
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful' });
+    } catch (err) {
+        res.status(400).json({ error: 'Invalid or expired token' });
     }
-    catch (err) {
-        res.status(400).send(err.message)
-        throw new Error(err.message)
-    }
-})
+});
+
 
 
 router.get('/download/:filename', authMiddleware, (req, res) => {
@@ -183,6 +188,45 @@ router.get('/user-details', authMiddleware, async (req, res) => {
 
 
 
+
+router.get('/search', async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offSet = (page - 1) * limit;
+
+    const search = req.query || '';
+
+    const query = {
+        $or: [
+            { username: new RegExp(search, 'i') },
+            { email: new RegExp(search, 'i') }
+        ]
+    };
+
+    try {
+        const users = await User.find(query).skip(offSet).limit(limit);
+        const totalUsers = await User.countDocuments(query);
+
+        if (users.length > 0) {
+            return res.json({
+                users,
+                currentPage: page,
+                totalPages: Math.ceil(totalUsers / limit),
+                totalUsers
+            });
+        } else {
+            return res.send('No user data found against this username');
+        }
+    } catch (error) {
+        return res.status(500).send('An error occurred while searching for users');
+    }
+});
+
+
+
+
+
+
 router.get('/:id', authMiddleware, (req, res) => {
     const role = req.user.role; // Access role from req.user
     if (role === 'Admin') {
@@ -197,8 +241,6 @@ router.get('/:id', authMiddleware, (req, res) => {
         res.status(403).send('You are not authorized to access this page');
     }
 });
-
-
 
 
 
