@@ -8,6 +8,9 @@ const limiter = require('../middleware/rateLimiter');
 const nodemailer = require('nodemailer');
 const mailer = require('../middleware/mailer');
 const path = require('path')
+const redisClient = require('../redisClient')
+const fs = require('fs');
+const { error } = require('console');
 
 
 
@@ -160,18 +163,32 @@ router.get('/user-details', authMiddleware, async (req, res) => {
         const limit = parseInt(req.params.limit) || 10;
         const offset = (page - 1) * limit;
 
-        const users = await User.find().skip(offset).limit(limit);
-        const totalUsers = await User.countDocuments();
-        if (users.length > 0) { // Check if users array is not empty
-            res.status(200).json({
-                users,
-                currentPage: page,
-                totalPages: Math.ceil(totalUsers / limit),
-                totalUsers
-            });
-        } else {
-            res.status(404).send('No user data found!');
-        }
+        const cacheKey = `useDetails ${page}:${limit}`;
+
+        redisClient.get(cacheKey, async (err, cachedData) => {
+            if (err) throw err;
+            if (cachedData) {
+                return res.status(200).json(JSON.parse(cachedData));
+            }
+            else {
+                const users = await User.find().skip(offset).limit(limit);
+                const totalUsers = await User.countDocuments();
+                if (users.length > 0) { // Check if users array is not empty
+                    const response = {
+                        users,
+                        currentPage: page,
+                        totalPages: Math.ceil(totalUsers / limit),
+                        totalUsers
+                    };
+
+                    redisClient.setEx(cacheKey, 60, JSON.stringify(response));
+                    res.status(200).json(response);
+
+                } else {
+                    res.status(404).send('No user data found!');
+                }
+            }
+        })
     } catch (err) {
         res.status(500).send('Something went wrong');
     }
@@ -216,25 +233,34 @@ router.get('/search', async (req, res) => {
 
 
 
+router.delete('/delete-file/:filename', authMiddleware, async (req, res) => {
+    const filename = req.params.filename;
+    const filepath = path.join(__dirname, '../uploads/', filename);
+    if (fs.existsSync(filepath)) {
+        fs.unlink(filepath, (err) => {
+            if (err) {
+                res.status(500).json({ error: "Failed to delete the file" });
+            }
+            res.status(200).json({ message: "File deleted successfully!" })
+        })
+    }
+    else {
+        res.status(404).json({ error: "File does not exists" });
+    }
 
+})
 
 
 
 router.get('/:id', authMiddleware, (req, res) => {
-    const role = req.user.role; // Access role from req.user
-    if (role === 'Admin') {
-        const id = req.params.id;
-        console.log(id);
-        if (id) {
-            res.send(`User id is ${id}`);
-        } else {
-            res.send('User id is null');
-        }
+    const id = req.params.id;
+    console.log(id);
+    if (id) {
+        res.send(`User id is ${id}`);
     } else {
-        res.status(403).send('You are not authorized to access this page');
+        res.send('User id is null');
     }
+
 });
-
-
 
 module.exports = router;

@@ -39,14 +39,14 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage: storage,
     limits: { fileSize: 10000000 },
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
-            cb(null, true)
-        }
-        else {
-            cb(new Error('Invalid File Type'))
-        }
-    }
+    // fileFilter: (req, file, cb) => {
+    //     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png'||file.) {
+    //         cb(null, true)
+    //     }
+    //     else {
+    //         cb(new Error('Invalid File Type'))
+    //     }
+    // }
 })
 const logging = require('./middleware/logging')
 const error = require('./middleware/error')
@@ -72,13 +72,19 @@ app.get('/greet', (req, res) => {
 
 
 app.post('/upload', upload.single('file'), (req, res) => {
-    res.json({
-        message: "File uploaded Successfully!",
-        filename: req.file.originalname,
-        size: req.file.size,
-        path: req.file.path
+    const tempPath = req.fil.path;
+    const targetPath = path.join(__dirname, '../uploads/', req.file.originalname);
+    fs.rename(tempPath, targetPath, err => {
+        if (err) {
+            return res.status(500).json({ error: 'File upload failed' });
+        }
+        res.status(200).json({
+            message: "File uploaded successfully!",
+            filename: req.file.originalname,
+            size: req.file.size,
+            path: req.file.path
+        })
     })
-
 })
 
 app.use(error)
