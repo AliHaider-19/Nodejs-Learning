@@ -87,9 +87,46 @@ app.post('/upload', upload.single('file'), (req, res) => {
     })
 })
 
+// File Handling
+
+app.post('/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const uploadsDir = path.join(__dirname, './uploads');
+    const filePath = path.join(uploadsDir, filename);
+    const data = "my name is Ali Haider";
+
+    // Ensure the uploads directory exists
+    if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir);
+    }
+
+    // Write the file
+    fs.writeFile(filePath, data, (err) => {
+        if (err) {
+            console.log('There was an error writing to the file');
+            return res.status(500).send('Error writing file');
+        }
+
+        // Read the file after writing
+        fs.readFile(filePath, 'utf-8', (err, data) => {
+            if (err) {
+                console.error('There was an error reading the file', err);
+                return res.status(500).send('Error reading file');
+            }
+            console.log('File content:', data);
+            res.status(200).send(data); // Respond with the file content
+        });
+    });
+});
+
+
+
+
+
 app.use(error)
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 }).on('error', () => {
     console.error('There is some error on server side')
 })
+
