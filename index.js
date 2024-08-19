@@ -1,80 +1,89 @@
-const express = require('express')
+const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const User = require('./models/userModel')
+const http = require('http');
+const socketIo = require('socket.io');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
+
+io.on('connection', (socket) => {
+    console.log('User Connected');
+
+    socket.on('chat message', (msg) => {
+        console.log(msg);
+        io.emit('chat message', msg); // Ensure consistent event name
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User Disconnected');
+    });
+});
 
 require('dotenv').config();
 const connection = () => {
-    mongoose.connect(process.env.MONGO_URL)
-    console.log('Connected')
-}
+    mongoose.connect(process.env.MONGO_URL, { useNewUrlParser: true, useUnifiedTopology: true })
+        .then(() => console.log('Connected to MongoDB'))
+        .catch(err => console.error('Failed to connect to MongoDB', err));
+};
 
 connection();
 
-const app = express();
 const PORT = 3000;
 
 app.use(express.json());
-app.use(express.static('public'))
+app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
-
 
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdir(uploadDir)
+    fs.mkdirSync(uploadDir, { recursive: true });
 }
-
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads')
+        cb(null, 'uploads');
     },
     filename: function (req, file, cb) {
-        cb(null, file.originalname)
+        cb(null, file.originalname);
     }
-})
+});
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10000000 },
-    // fileFilter: (req, file, cb) => {
-    //     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png'||file.) {
-    //         cb(null, true)
-    //     }
-    //     else {
-    //         cb(new Error('Invalid File Type'))
-    //     }
-    // }
-})
-const logging = require('./middleware/logging')
-const error = require('./middleware/error')
-const userRouter = require('./router/userRoutes')
-const adminRouter = require('./router/adminRouter')
+    limits: { fileSize: 10000000 }
+});
+
+const logging = require('./middleware/logging');
+const error = require('./middleware/error');
+const userRouter = require('./router/userRoutes');
+const adminRouter = require('./router/adminRouter');
 
 app.use(logging);
 app.use('/user', userRouter);
-app.use('/admin', adminRouter)
+app.use('/admin', adminRouter);
 
 app.get('/', (req, res) => {
     res.send('Hello, World!');
-})
+});
+
 app.get('/greet', (req, res) => {
     const name = req.query.name;
     if (name) {
         res.send(`Hello ${name}`);
+    } else {
+        res.send('Hello, Guest!');
     }
-    else {
-        res.send('Hello, Guest!')
-    }
-})
-
+});
 
 app.post('/upload', upload.single('file'), (req, res) => {
-    const tempPath = req.fil.path;
-    const targetPath = path.join(__dirname, '../uploads/', req.file.originalname);
-    fs.rename(tempPath, targetPath, err => {
+    const tempPath = req.file.path;
+    const targetPath = path.join(__dirname, 'uploads', req.file.originalname);
+
+    fs.rename(tempPath, targetPath, (err) => {
         if (err) {
             return res.status(500).json({ error: 'File upload failed' });
         }
@@ -82,22 +91,25 @@ app.post('/upload', upload.single('file'), (req, res) => {
             message: "File uploaded successfully!",
             filename: req.file.originalname,
             size: req.file.size,
-            path: req.file.path
-        })
-    })
-})
+            path: targetPath
+        });
+    });
+});
 
 // File Handling
-
 app.post('/:filename', (req, res) => {
     const filename = req.params.filename;
-    const uploadsDir = path.join(__dirname, './uploads');
+    const uploadsDir = path.join(__dirname, 'uploads');
     const filePath = path.join(uploadsDir, filename);
     const data = "my name is Ali Haider";
 
     // Ensure the uploads directory exists
     if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir);
+        try {
+            fs.mkdirSync(uploadsDir);
+        } catch (err) {
+            return res.status(500).send('Error creating directory');
+        }
     }
 
     // Write the file
@@ -119,14 +131,10 @@ app.post('/:filename', (req, res) => {
     });
 });
 
+app.use(error);
 
-
-
-
-app.use(error)
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 }).on('error', () => {
-    console.error('There is some error on server side')
-})
-
+    console.error('There is some error on server side');
+});
