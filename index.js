@@ -5,6 +5,14 @@ const path = require('path');
 const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
+const url = require('url');
+
+var adr = 'http://localhost:8080/default.htm?year=2017&month=february';
+const result = url.parse(adr, true);
+
+console.log(result.host)
+console.log(result.query)
+
 
 const app = express();
 const server = http.createServer(app);
