@@ -4,22 +4,57 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new Server(server);
 
+const users = []
 io.on('connection', (socket) => {
-    console.log('User Connected');
+    // socket.custome = () => {
+    //     console.log('Ali Haider')
+    // }
+    // console.log('User Connected');
+    // console.log('Socket Id', socket.id);
+    // socket.custome()
+    // console.log('Socket Rooms', socket.rooms);
 
-    socket.on('chat message', (msg) => {
-        console.log(msg);
-        io.emit('chat message', msg); // Ensure consistent event name
+    socket.on('adduser', username => {
+        socket.user = username;
+        users.push(username)
+        io.sockets.emit('users', users)
+        io.to(socket.id).emit('private', {
+            id: socket.id,
+            name: socket.user,
+            msg: "Welcome to the chat!",
+        })
+    })
+
+    // socket.on('chat message', (msg) => {
+    //     console.log(msg);
+    //     io.emit('chat message', msg); // Ensure consistent event name
+    // });
+    socket.on("message", message => {
+        io.sockets.emit("message", {
+            message,
+            user: socket.user,
+            id: socket.id,
+        });
     });
 
-    socket.on('disconnect', () => {
-        console.log('User Disconnected');
+
+
+    // socket.on('disconnect', () => {
+    //     console.log('User Disconnected');
+    // });
+    socket.on("disconnect", () => {
+        console.log(`user ${socket.user} is disconnected`);
+        if (socket.user) {
+            users.splice(users.indexOf(socket.user), 1);
+            io.sockets.emit("user", users);
+            console.log("remaining users:", users);
+        }
     });
 });
 
