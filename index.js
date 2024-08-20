@@ -15,7 +15,7 @@ io.on('connection', (socket) => {
     // socket.custome = () => {
     //     console.log('Ali Haider')
     // }
-    // console.log('User Connected');
+    console.log('User Connected');
     // console.log('Socket Id', socket.id);
     // socket.custome()
     // console.log('Socket Rooms', socket.rooms);
