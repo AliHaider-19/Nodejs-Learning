@@ -8,7 +8,7 @@ const limiter = require('../middleware/rateLimiter');
 const nodemailer = require('nodemailer');
 const mailer = require('../middleware/mailer');
 const path = require('path')
-const redisClient = require('../redisClient')
+const client = require('../redisClient')
 const fs = require('fs');
 const { error } = require('console');
 
@@ -159,21 +159,23 @@ router.get('/download/:filename', authMiddleware, (req, res) => {
 
 router.get('/user-details', authMiddleware, async (req, res) => {
     try {
-        const page = parseInt(req.params.page) || 1;
-        const limit = parseInt(req.params.limit) || 10;
+        const page = parseInt(req.query.page) || 1; // Use req.query for query parameters
+        const limit = parseInt(req.query.limit) || 10; // Use req.query for query parameters
         const offset = (page - 1) * limit;
 
-        const cacheKey = `useDetails ${page}:${limit}`;
+        const cacheKey = `userDetails:${page}:${limit}`;
 
-        redisClient.get(cacheKey, async (err, cachedData) => {
-            if (err) throw err;
+        client.get(cacheKey, async (err, cachedData) => {
+            if (err) {
+                console.error('Redis GET error:', err);
+                return res.status(500).send('Redis error');
+            }
             if (cachedData) {
                 return res.status(200).json(JSON.parse(cachedData));
-            }
-            else {
+            } else {
                 const users = await User.find().skip(offset).limit(limit);
                 const totalUsers = await User.countDocuments();
-                if (users.length > 0) { // Check if users array is not empty
+                if (users.length > 0) {
                     const response = {
                         users,
                         currentPage: page,
@@ -181,15 +183,16 @@ router.get('/user-details', authMiddleware, async (req, res) => {
                         totalUsers
                     };
 
-                    redisClient.setEx(cacheKey, 60, JSON.stringify(response));
+                    client.setEx(cacheKey, 60, JSON.stringify(response));
                     res.status(200).json(response);
 
                 } else {
                     res.status(404).send('No user data found!');
                 }
             }
-        })
+        });
     } catch (err) {
+        console.error('Server error:', err);
         res.status(500).send('Something went wrong');
     }
 });

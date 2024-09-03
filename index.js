@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
 const url = require('url');
+const cheerio = require('cheerio')
 
 var adr = 'http://localhost:8080/default.htm?year=2017&month=february';
 const result = url.parse(adr, true);
@@ -174,6 +175,49 @@ app.post('/:filename', (req, res) => {
     });
 });
 
+
+app.get('/metatags', async (req, res) => {
+    try {
+        // URL of the YouTube page to fetch
+        const youtubeURL = 'https://www.youtube.com/watch?v=b7DAsHoPxGc'; // Replace with the actual URL
+
+        // Fetch the HTML from the URL
+        const response = await fetch(youtubeURL);
+        const body = await response.text();
+
+        // Load the HTML into Cheerio
+        const $ = cheerio.load(body);
+
+        // Extract meta tags
+        const metaTags = {};
+        $('meta').each((index, element) => {
+            const name = $(element).attr('name');
+            const property = $(element).attr('property');
+            const content = $(element).attr('content');
+
+            if (name) {
+                metaTags[name] = content;
+            } else if (property) {
+                metaTags[property] = content;
+            }
+        });
+
+        // Extract specific information
+        const title = metaTags['og:title'] || metaTags['title'];
+        const image = metaTags['og:image'];
+        const description = metaTags['og:description'];
+
+        // Send the extracted information as the response
+        res.json({ title, image, description });
+    } catch (error) {
+        console.error('Error fetching meta tags:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+
+
+
 app.use(error);
 
 server.listen(PORT, () => {
@@ -181,3 +225,6 @@ server.listen(PORT, () => {
 }).on('error', () => {
     console.error('There is some error on server side');
 });
+
+
+
