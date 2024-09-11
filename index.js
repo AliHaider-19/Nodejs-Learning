@@ -7,6 +7,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const url = require('url');
 const cheerio = require('cheerio')
+const crypto = require('crypto')
 
 var adr = 'http://localhost:8080/default.htm?year=2017&month=february';
 const result = url.parse(adr, true);
@@ -216,9 +217,16 @@ app.get('/metatags', async (req, res) => {
 });
 
 
+const secret = 'abcdefg';
+const hash = crypto.createHmac('sha256', secret)
+    .update('i love to code')
+    .digest('hex');
+console.log(hash)
 
 
 app.use(error);
+
+console.log('Directory Name', __dirname)
 
 server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
