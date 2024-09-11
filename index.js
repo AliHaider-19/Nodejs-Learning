@@ -221,8 +221,26 @@ const secret = 'abcdefg';
 const hash = crypto.createHmac('sha256', secret)
     .update('i love to code')
     .digest('hex');
+
 console.log(hash)
 
+const cluster = require('cluster');
+const os = require('os');
+
+if (cluster.isMaster) {
+    const numCPUs = os.cpus().length;
+
+    for (let i = 0; i < numCPUs; i++) {
+        cluster.fork();
+        console.log('number of cpus', i)
+    }
+
+    // Listen for dying workers and replace them
+    cluster.on('exit', (worker, code, signal) => {
+        console.log(`Worker ${worker.process.pid} died. Forking a new one...`);
+        cluster.fork();
+    });
+}
 
 app.use(error);
 
